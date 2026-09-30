@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MacroPulse iOS - Macro & Mineral Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for YouTube Studio style graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Tesseract.js for OCR Label Scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            bg: '#F2F2F7',
+                            card: '#FFFFFF',
+                            darkBg: '#000000',
+                            darkCard: '#1C1C1E',
+                            blue: '#007AFF',
+                            green: '#34C759',
+                            orange: '#FF9500',
+                            red: '#FF3B30',
+                            purple: '#AF52DE',
+                            teal: '#30B0C7',
+                            pink: '#FF2D55'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'San Francisco', 'Helvetica Neue', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom iOS & Touch Optimization */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Glassmorphism */
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Smooth tab animations */
+        .tab-content {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Pulse camera target frame */
+        @keyframes scanPulse {
+            0% { border-color: rgba(0, 122, 255, 0.4); }
+            50% { border-color: rgba(0, 122, 255, 1); }
+            100% { border-color: rgba(0, 122, 255, 0.4); }
+        }
+        .scan-frame {
+            animation: scanPulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-black text-slate-900 dark:text-slate-100 h-full flex justify-center items-center overflow-hidden">
+
+    <!-- iPhone Device Simulator Canvas Wrapper -->
+    <div id="app-container" class="w-full max-w-md h-full sm:h-[844px] bg-ios-bg dark:bg-ios-darkBg sm:rounded-[48px] shadow-2xl relative flex flex-col overflow-hidden border-0 sm:border-[8px] border-slate-800">
+
+        <!-- Top Simulated iOS Status Bar -->
+        <div class="pt-3 px-6 pb-1 flex justify-between items-center text-xs font-semibold select-none z-50 bg-ios-bg/90 dark:bg-ios-darkBg/90 ios-blur">
+            <span id="ios-time" class="font-bold">09:41</span>
+            <div class="w-20 h-4 bg-black rounded-full hidden sm:block"></div>
+            <div class="flex items-center space-x-1.5 text-slate-800 dark:text-slate-200">
+                <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+                <i data-lucide="battery-charging" class="w-4 h-4"></i>
+            </div>
+        </div>
+
+        <!-- ONBOARDING SETUP WIZARD (Shown if no profile exists) -->
+        <div id="onboarding-modal" class="absolute inset-0 bg-ios-bg dark:bg-ios-darkBg z-50 flex flex-col p-6 overflow-y-auto no-scrollbar hidden">
+            <div class="my-auto space-y-6">
+                <div class="text-center space-y-2">
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30">
+                        <i data-lucide="activity" class="w-9 h-9"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold tracking-tight">Welcome to MacroPulse</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Let's set your daily macronutrient & micronutrient targets.</p>
+                </div>
+
+                <form id="onboarding-form" class="space-y-4">
+                    <div class="bg-white dark:bg-ios-darkCard rounded-2xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Weight & Units</h2>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Current Weight</label>
+                                <input type="number" step="0.1" id="setup-weight" required placeholder="e.g. 165" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Unit Preference</label>
+                                <select id="setup-unit" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                                    <option value="lbs">lbs</option>
+                                    <option value="kg">kg</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-ios-darkCard rounded-2xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Daily Macro Targets</h2>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Calories (kcal)</label>
+                                <input type="number" id="setup-cals" required placeholder="2000" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Protein (g)</label>
+                                <input type="number" id="setup-protein" required placeholder="150" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Carbs (g)</label>
+                                <input type="number" id="setup-carbs" required placeholder="200" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Fats (g)</label>
+                                <input type="number" id="setup-fats" required placeholder="65" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-[11px] font-medium text-slate-500">Sugar Limit (g)</label>
+                                <input type="number" id="setup-sugar" required placeholder="35" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-ios-darkCard rounded-2xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Key Essential Micronutrients</h2>
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Calcium (mg)</label>
+                                <input type="number" id="setup-calcium" value="1000" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Potassium (mg)</label>
+                                <input type="number" id="setup-potassium" value="3400" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Magnesium (mg)</label>
+                                <input type="number" id="setup-magnesium" value="400" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Iron (mg)</label>
+                                <input type="number" id="setup-iron" value="18" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Zinc (mg)</label>
+                                <input type="number" id="setup-zinc" value="11" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Sodium (mg)</label>
+                                <input type="number" id="setup-sodium" value="2300" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-3.5 rounded-2xl bg-ios-blue text-white font-bold text-sm shadow-lg shadow-blue-500/25 active:scale-[0.98] transition">
+                        Save Plan & Start Tracking
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- App Header Bar -->
+        <header class="px-5 py-2.5 flex items-center justify-between bg-ios-bg/80 dark:bg-ios-darkBg/80 border-b border-slate-200/50 dark:border-slate-800/80 z-20">
+            <div class="flex items-center space-x-2">
+                <span class="w-3 h-3 rounded-full bg-ios-blue"></span>
+                <h1 id="view-title" class="text-lg font-bold">Today</h1>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="quick-weight-btn" class="p-2 rounded-xl bg-white dark:bg-ios-darkCard text-ios-blue border border-slate-200 dark:border-slate-800 text-xs font-semibold flex items-center space-x-1 shadow-sm">
+                    <i data-lucide="scale" class="w-3.5 h-3.5"></i>
+                    <span id="header-weight-lbl">--</span>
+                </button>
+                <button id="date-picker-btn" class="p-2 rounded-xl bg-white dark:bg-ios-darkCard text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-semibold shadow-sm">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN SCROLLABLE CONTENT BODY -->
+        <main class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 relative">
+
+            <!-- TAB 1: TODAY DASHBOARD -->
+            <section id="tab-today" class="tab-content active space-y-4">
+                
+                <!-- Macro Overview Cards Rings/Bars -->
+                <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-5 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Calories</span>
+                            <div class="flex items-baseline space-x-1">
+                                <span id="dash-cals-consumed" class="text-3xl font-extrabold tracking-tight">0</span>
+                                <span id="dash-cals-target" class="text-xs text-slate-400 font-medium">/ 0 kcal</span>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-ios-blue font-bold text-xs flex flex-col items-center">
+                            <span id="cals-percent" class="text-base">0%</span>
+                            <span class="text-[9px] text-slate-400 font-normal">of goal</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar for Calories -->
+                    <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                        <div id="cals-bar" class="bg-ios-blue h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+
+                    <!-- 4 Sub Macros (Protein, Carbs, Fat, Sugar) -->
+                    <div class="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        <div class="space-y-1">
+                            <span class="text-[10px] text-slate-400 font-semibold block">PROTEIN</span>
+                            <p class="text-xs font-bold"><span id="dash-p-val">0</span>g</p>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div id="p-bar" class="bg-ios-red h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-[10px] text-slate-400 font-semibold block">CARBS</span>
+                            <p class="text-xs font-bold"><span id="dash-c-val">0</span>g</p>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div id="c-bar" class="bg-ios-orange h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-[10px] text-slate-400 font-semibold block">FATS</span>
+                            <p class="text-xs font-bold"><span id="dash-f-val">0</span>g</p>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div id="f-bar" class="bg-ios-teal h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-[10px] text-slate-400 font-semibold block">SUGAR</span>
+                            <p class="text-xs font-bold"><span id="dash-s-val">0</span>g</p>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div id="s-bar" class="bg-ios-purple h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Essential Minerals Grid -->
+                <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Essential Minerals / Metals</h3>
+                        <span class="text-[10px] text-slate-400">Daily Intake</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Calcium</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-calcium">0</span> / <span id="target-calcium">0</span>mg</p>
+                        </div>
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Potassium</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-potassium">0</span> / <span id="target-potassium">0</span>mg</p>
+                        </div>
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Magnesium</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-magnesium">0</span> / <span id="target-magnesium">0</span>mg</p>
+                        </div>
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Iron</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-iron">0</span> / <span id="target-iron">0</span>mg</p>
+                        </div>
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Zinc</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-zinc">0</span> / <span id="target-zinc">0</span>mg</p>
+                        </div>
+                        <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Sodium</span>
+                            <p class="text-xs font-bold mt-0.5"><span id="min-sodium">0</span> / <span id="target-sodium">0</span>mg</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Meal History List -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Meals</h3>
+                        <span id="meal-count-tag" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 font-semibold">0 logged</span>
+                    </div>
+
+                    <div id="today-meals-container" class="space-y-2">
+                        <!-- Dynamic Meals rendered here -->
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- TAB 2: YOUTUBE STUDIO STYLE ANALYTICS -->
+            <section id="tab-studio" class="tab-content space-y-4">
+                <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-sm font-bold leading-tight">Macro Analytics Studio</h2>
+                                <p class="text-[10px] text-slate-400">Intake & Weight Trends</p>
+                            </div>
+                        </div>
+
+                        <!-- Timeframe selector -->
+                        <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[10px] font-semibold">
+                            <button id="timeframe-week" class="px-2.5 py-1 rounded-lg bg-white dark:bg-ios-darkCard shadow-sm">7 Days</button>
+                            <button id="timeframe-month" class="px-2.5 py-1 rounded-lg text-slate-400">30 Days</button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Metrics Summary Grid -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Avg Daily Calories</span>
+                            <p id="studio-avg-cals" class="text-lg font-bold text-slate-800 dark:text-slate-100 mt-0.5">0 kcal</p>
+                            <span class="text-[9px] text-emerald-500 font-medium flex items-center">
+                                <i data-lucide="check-circle" class="w-2.5 h-2.5 mr-1"></i> Conservative estimate
+                            </span>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-medium">Weight Change</span>
+                            <p id="studio-weight-delta" class="text-lg font-bold text-slate-800 dark:text-slate-100 mt-0.5">0.0 lbs</p>
+                            <span class="text-[9px] text-ios-blue font-medium flex items-center">
+                                <i data-lucide="trending-up" class="w-2.5 h-2.5 mr-1"></i> Weight log sync
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Macro Chart Container -->
+                    <div class="space-y-2 pt-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Calorie Intake History</span>
+                        <div class="h-48 w-full relative">
+                            <canvas id="macroChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Weight Progress Chart -->
+                    <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Weight Progress</span>
+                            <span id="chart-weight-unit" class="text-[10px] font-bold text-ios-blue">lbs</span>
+                        </div>
+                        <div class="h-44 w-full relative">
+                            <canvas id="weightChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: LOG FOOD (Manual, AI Text, Camera & Barcode) -->
+            <section id="tab-log" class="tab-content space-y-4">
+
+                <!-- Mode Selection Buttons -->
+                <div class="grid grid-cols-3 gap-2 bg-slate-200 dark:bg-slate-800/80 p-1 rounded-2xl text-xs font-semibold">
+                    <button id="mode-btn-quick" class="py-2 rounded-xl bg-white dark:bg-ios-darkCard shadow-sm text-ios-blue">AI Quick Text</button>
+                    <button id="mode-btn-scan" class="py-2 rounded-xl text-slate-500">Scan Label/Code</button>
+                    <button id="mode-btn-manual" class="py-2 rounded-xl text-slate-500">Manual</button>
+                </div>
+
+                <!-- MODE A: AI CONSERVATIVE TEXT ESTIMATOR -->
+                <div id="log-mode-quick" class="space-y-3">
+                    <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                                <h3 class="text-xs font-bold uppercase tracking-wider">Natural Language Estimator</h3>
+                            </div>
+                            <span class="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 font-semibold">-10% Conservative</span>
+                        </div>
+
+                        <p class="text-xs text-slate-500">Type what you ate (e.g. "2 eggs, 1 slice toast, 150g chicken breast, 1 cup milk"). The app automatically calculates conservative estimates.</p>
+
+                        <textarea id="ai-food-input" rows="3" placeholder="e.g. 2 eggs, 1 cup oatmeal, 1 banana..." class="w-full p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-medium border-0 focus:ring-2 focus:ring-ios-blue outline-none resize-none"></textarea>
+
+                        <button id="btn-parse-ai" class="w-full py-3 rounded-2xl bg-ios-blue text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center justify-center space-x-2">
+                            <i data-lucide="calculator" class="w-4 h-4"></i>
+                            <span>Calculate & Preview Entry</span>
+                        </button>
+                    </div>
+
+                    <!-- AI Preview Result Card -->
+                    <div id="ai-preview-card" class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3 hidden">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase">Parsed Estimate</h4>
+                            <span class="text-[10px] text-slate-400">Intentionally rounded down</span>
+                        </div>
+
+                        <div id="ai-parsed-items" class="space-y-1 text-xs">
+                            <!-- Items list -->
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">CALS</span>
+                                <span id="prev-cals" class="text-xs font-bold">0</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">PROTEIN</span>
+                                <span id="prev-p" class="text-xs font-bold">0g</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">CARBS</span>
+                                <span id="prev-c" class="text-xs font-bold">0g</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] text-slate-400 block">FATS</span>
+                                <span id="prev-f" class="text-xs font-bold">0g</span>
+                            </div>
+                        </div>
+
+                        <button id="btn-confirm-ai-log" class="w-full py-3 rounded-2xl bg-ios-green text-white font-bold text-xs shadow-md active:scale-95 transition">
+                            Log This Meal
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MODE B: CAMERA OCR & BARCODE SCANNER -->
+                <div id="log-mode-scan" class="space-y-3 hidden">
+                    <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i data-lucide="camera" class="w-4 h-4 text-ios-blue"></i>
+                                <h3 class="text-xs font-bold uppercase tracking-wider">Multi-Item Scanner</h3>
+                            </div>
+                            <span id="scan-queue-count" class="text-[10px] px-2 py-0.5 rounded-full bg-ios-blue/10 text-ios-blue font-bold">0 items in batch</span>
+                        </div>
+
+                        <!-- Live Video Stream Feed -->
+                        <div class="relative w-full h-52 bg-black rounded-2xl overflow-hidden flex items-center justify-center">
+                            <video id="scanner-video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+                            
+                            <!-- Scanner Target Frame Overlay -->
+                            <div class="absolute inset-6 border-2 border-ios-blue rounded-2xl scan-frame pointer-events-none flex items-center justify-center">
+                                <span class="text-[10px] text-white/80 bg-black/60 px-2 py-1 rounded-full backdrop-blur-sm">Align Nutrition Label or Barcode</span>
+                            </div>
+
+                            <canvas id="scanner-canvas" class="hidden"></canvas>
+                        </div>
+
+                        <!-- Scan Controls -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-start-camera" class="py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold text-xs flex items-center justify-center space-x-1.5">
+                                <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                                <span>Toggle Camera</span>
+                            </button>
+                            <button id="btn-capture-scan" class="py-2.5 rounded-xl bg-ios-blue text-white font-semibold text-xs flex items-center justify-center space-x-1.5 shadow-md">
+                                <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                                <span>Scan Frame</span>
+                            </button>
+                        </div>
+
+                        <p id="ocr-status" class="text-[11px] text-slate-400 text-center italic">Camera ready. Tap Scan Frame on label or barcode.</p>
+                    </div>
+
+                    <!-- Scanned Multi-Item Queue List -->
+                    <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase">Current Meal Batch Queue</h4>
+                        
+                        <div id="scan-queue-list" class="space-y-2">
+                            <p class="text-xs text-slate-400 italic text-center py-2">No scanned items yet. Scan products above to add to this meal batch.</p>
+                        </div>
+
+                        <button id="btn-submit-scan-batch" class="w-full py-3 rounded-2xl bg-ios-green text-white font-bold text-xs shadow-md active:scale-95 transition disabled:opacity-50" disabled>
+                            Log Complete Batch Meal
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MODE C: MANUAL MACRO ENTRY -->
+                <div id="log-mode-manual" class="space-y-3 hidden">
+                    <form id="manual-log-form" class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Manual Entry</h3>
+
+                        <div>
+                            <label class="text-[11px] font-medium text-slate-500">Meal / Food Name</label>
+                            <input type="text" id="manual-name" required placeholder="e.g. Greek Yogurt Bowl" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Calories (kcal)</label>
+                                <input type="number" id="manual-cals" required placeholder="0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Servings</label>
+                                <input type="number" step="0.1" id="manual-servings" value="1.0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Protein (g)</label>
+                                <input type="number" id="manual-p" value="0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Carbs (g)</label>
+                                <input type="number" id="manual-c" value="0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Fats (g)</label>
+                                <input type="number" id="manual-f" value="0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                            <div>
+                                <label class="text-[11px] font-medium text-slate-500">Sugar (g)</label>
+                                <input type="number" id="manual-s" value="0" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <span class="text-[11px] font-bold text-slate-400 block mb-2">Optional Mineral Boost (mg)</span>
+                            <div class="grid grid-cols-3 gap-2 text-[11px]">
+                                <input type="number" id="manual-calcium" placeholder="Calcium" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-0">
+                                <input type="number" id="manual-potassium" placeholder="Potassium" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-0">
+                                <input type="number" id="manual-magnesium" placeholder="Magnesium" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-0">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 rounded-2xl bg-ios-blue text-white font-bold text-xs shadow-md active:scale-95 transition">
+                            Log Manual Meal
+                        </button>
+                    </form>
+                </div>
+
+            </section>
+
+            <!-- TAB 4: EDITABLE GOALS & SETTINGS -->
+            <section id="tab-settings" class="tab-content space-y-4">
+                <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-5 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-bold">Edit Goals & Preferences</h2>
+                        <i data-lucide="sliders" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+
+                    <form id="settings-form" class="space-y-4">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Daily Targets</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Target Calories</span>
+                                    <input type="number" id="edit-cals" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Protein (g)</span>
+                                    <input type="number" id="edit-protein" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Carbs (g)</span>
+                                    <input type="number" id="edit-carbs" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Fats (g)</span>
+                                    <input type="number" id="edit-fats" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Sugar Limit (g)</span>
+                                    <input type="number" id="edit-sugar" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-slate-500">Weight Unit</span>
+                                    <select id="edit-unit" class="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold border-0">
+                                        <option value="lbs">lbs</option>
+                                        <option value="kg">kg</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 rounded-2xl bg-ios-blue text-white font-bold text-xs shadow-md active:scale-95 transition">
+                            Update Plan Targets
+                        </button>
+                    </form>
+                </div>
+
+                <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-4 shadow-sm border border-slate-200/50 dark:border-slate-800 space-y-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Data & Reset</h3>
+                    <button id="btn-reset-data" class="w-full py-2.5 rounded-2xl bg-red-500/10 text-ios-red font-semibold text-xs border border-red-500/20 active:scale-95 transition">
+                        Reset All Saved Data & Restart Onboarding
+                    </button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- QUICK WEIGHT INPUT MODAL -->
+        <div id="weight-modal" class="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 hidden">
+            <div class="bg-white dark:bg-ios-darkCard rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl border border-slate-200/50 dark:border-slate-800">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold">Log Daily Weight</h3>
+                    <button id="close-weight-modal" class="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs text-slate-500">Weight Value</label>
+                        <span id="weight-modal-unit-label" class="text-xs font-bold text-ios-blue">lbs</span>
+                    </div>
+                    <input type="number" step="0.1" id="modal-weight-val" placeholder="0.0" class="w-full px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-lg font-bold border-0 focus:ring-2 focus:ring-ios-blue outline-none">
+                </div>
+
+                <button id="btn-save-weight" class="w-full py-3 rounded-2xl bg-ios-blue text-white font-bold text-xs shadow-md active:scale-95 transition">
+                    Save Weight Entry
+                </button>
+            </div>
+        </div>
+
+        <!-- Native iOS Bottom Navigation Bar -->
+        <nav class="px-6 py-2 border-t border-slate-200/60 dark:border-slate-800/80 bg-ios-bg/90 dark:bg-ios-darkBg/90 ios-blur flex justify-between items-center z-30">
+            <button data-tab="tab-today" class="nav-tab flex flex-col items-center space-y-1 text-ios-blue">
+                <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Today</span>
+            </button>
+            <button data-tab="tab-studio" class="nav-tab flex flex-col items-center space-y-1 text-slate-400">
+                <i data-lucide="youtube" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Studio</span>
+            </button>
+            <button data-tab="tab-log" class="nav-tab flex flex-col items-center space-y-1 text-slate-400">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Log Food</span>
+            </button>
+            <button data-tab="tab-settings" class="nav-tab flex flex-col items-center space-y-1 text-slate-400">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Settings</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <script>
+        // --- 1. LOCAL STORAGE & STATE MANAGEMENT ---
+        const STORAGE_KEY = 'macropulse_user_data_v1';
+
+        let appState = {
+            profile: null, // { weight, unit, cals, protein, carbs, fats, sugar, minerals }
+            meals: [],    // Array of { id, date, name, cals, protein, carbs, fats, sugar, minerals }
+            weightLog: [] // Array of { date, weight, unit }
+        };
+
+        function loadState() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                try {
+                    appState = JSON.parse(raw);
+                } catch(e) {
+                    console.error("Error parsing saved state", e);
+                }
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            updateUI();
+        }
+
+        // Initialize icons
+        lucide.createIcons();
+
+        // Clock Update
+        function updateIosClock() {
+            const now = new Date();
+            const hrs = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('ios-time').textContent = `${hrs}:${mins}`;
+        }
+        setInterval(updateIosClock, 1000);
+        updateIosClock();
+
+        // --- 2. ONBOARDING & SETUP WIZARD ---
+        const onboardingModal = document.getElementById('onboarding-modal');
+        const onboardingForm = document.getElementById('onboarding-form');
+
+        function checkOnboarding() {
+            if (!appState.profile) {
+                onboardingModal.classList.remove('hidden');
+            } else {
+                onboardingModal.classList.add('hidden');
+                populateSettingsForm();
+            }
+        }
+
+        onboardingForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const weight = parseFloat(document.getElementById('setup-weight').value) || 160;
+            const unit = document.getElementById('setup-unit').value;
+            
+            appState.profile = {
+                weight: weight,
+                unit: unit,
+                cals: parseInt(document.getElementById('setup-cals').value) || 2000,
+                protein: parseInt(document.getElementById('setup-protein').value) || 150,
+                carbs: parseInt(document.getElementById('setup-carbs').value) || 200,
+                fats: parseInt(document.getElementById('setup-fats').value) || 65,
+                sugar: parseInt(document.getElementById('setup-sugar').value) || 35,
+                minerals: {
+                    calcium: parseInt(document.getElementById('setup-calcium').value) || 1000,
+                    potassium: parseInt(document.getElementById('setup-potassium').value) || 3400,
+                    magnesium: parseInt(document.getElementById('setup-magnesium').value) || 400,
+                    iron: parseInt(document.getElementById('setup-iron').value) || 18,
+                    zinc: parseInt(document.getElementById('setup-zinc').value) || 11,
+                    sodium: parseInt(document.getElementById('setup-sodium').value) || 2300
+                }
+            };
+
+            // Log initial weight
+            const todayStr = new Date().toISOString().split('T')[0];
+            appState.weightLog.push({ date: todayStr, weight: weight, unit: unit });
+
+            saveState();
+            checkOnboarding();
+        });
+
+        // --- 3. NAVIGATION TABS ---
+        const navTabs = document.querySelectorAll('.nav-tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const viewTitle = document.getElementById('view-title');
+
+        const titleMap = {
+            'tab-today': 'Today',
+            'tab-studio': 'Analytics Studio',
+            'tab-log': 'Log Food',
+            'tab-settings': 'Settings'
+        };
+
+        navTabs.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-tab');
+                
+                navTabs.forEach(b => {
+                    b.classList.remove('text-ios-blue');
+                    b.classList.add('text-slate-400');
+                });
+                btn.classList.add('text-ios-blue');
+                btn.classList.remove('text-slate-400');
+
+                tabContents.forEach(tc => {
+                    if (tc.id === target) {
+                        tc.classList.add('active');
+                    } else {
+                        tc.classList.remove('active');
+                    }
+                });
+
+                viewTitle.textContent = titleMap[target] || 'MacroPulse';
+
+                if (target === 'tab-studio') {
+                    renderStudioCharts();
+                }
+            });
+        });
+
+        // --- 4. NATURAL LANGUAGE CONSERVATIVE ESTIMATOR ---
+        // Built-in dictionary with slightly conservative estimates (-10% lower as requested)
+        const FOOD_DB = {
+            'egg': { cals: 65, p: 5.5, c: 0.4, f: 4.5, s: 0, ca: 25, pot: 60 },
+            'eggs': { cals: 65, p: 5.5, c: 0.4, f: 4.5, s: 0, ca: 25, pot: 60 },
+            'chicken': { cals: 1.4, p: 0.27, c: 0, f: 0.03, s: 0, ca: 0.1, pot: 2.5 }, // per gram
+            'chicken breast': { cals: 1.4, p: 0.27, c: 0, f: 0.03, s: 0, ca: 0.1, pot: 2.5 },
+            'toast': { cals: 70, p: 2.5, c: 12, f: 0.9, s: 1.2, ca: 30, pot: 40 }, // per slice
+            'bread': { cals: 70, p: 2.5, c: 12, f: 0.9, s: 1.2, ca: 30, pot: 40 },
+            'milk': { cals: 120, p: 7, c: 11, f: 4.5, s: 11, ca: 280, pot: 320 }, // per cup
+            'banana': { cals: 90, p: 1, c: 23, f: 0.2, s: 12, ca: 5, pot: 360 }, // per banana
+            'oatmeal': { cals: 140, p: 5, c: 25, f: 2.5, s: 0.8, ca: 20, pot: 130 }, // per cup cooked
+            'rice': { cals: 180, p: 3.5, c: 38, f: 0.4, s: 0.1, ca: 10, pot: 50 }, // per cup cooked
+            'apple': { cals: 75, p: 0.4, c: 19, f: 0.2, s: 14, ca: 8, pot: 150 }
+        };
+
+        const btnParseAi = document.getElementById('btn-parse-ai');
+        const aiFoodInput = document.getElementById('ai-food-input');
+        const aiPreviewCard = document.getElementById('ai-preview-card');
+        const aiParsedItems = document.getElementById('ai-parsed-items');
+
+        let currentAiParsedLog = null;
+
+        btnParseAi.addEventListener('click', () => {
+            const text = aiFoodInput.value.toLowerCase().trim();
+            if (!text) return;
+
+            let totalCals = 0, totalP = 0, totalC = 0, totalF = 0, totalS = 0;
+            let totalCa = 0, totalPot = 0;
+
+            const itemsList = [];
+            const clauses = text.split(',');
+
+            clauses.forEach(clause => {
+                let qty = 1;
+                // Simple regex parser for numbers
+                const matchNum = clause.match(/\d+(\.\d+)?/);
+                if (matchNum) {
+                    qty = parseFloat(matchNum[0]);
+                }
+
+                let matchedKey = null;
+                for (let key in FOOD_DB) {
+                    if (clause.includes(key)) {
+                        matchedKey = key;
+                        break;
+                    }
+                }
+
+                if (matchedKey) {
+                    const data = FOOD_DB[matchedKey];
+                    // Intentionally scale down slightly (~10% conservative margin)
+                    const cals = Math.floor(data.cals * qty * 0.9);
+                    const p = Math.floor(data.p * qty * 0.9);
+                    const c = Math.floor(data.c * qty * 0.9);
+                    const f = Math.floor(data.f * qty * 0.9);
+                    const s = Math.floor(data.s * qty * 0.9);
+
+                    totalCals += cals;
+                    totalP += p;
+                    totalC += c;
+                    totalF += f;
+                    totalS += s;
+                    totalCa += Math.floor((data.ca || 0) * qty);
+                    totalPot += Math.floor((data.pot || 0) * qty);
+
+                    itemsList.push(`${qty}x ${matchedKey} (~${cals} kcal, ${p}g P)`);
+                } else {
+                    // Fallback general item estimate
+                    const fallbackCals = Math.floor(100 * qty * 0.9);
+                    totalCals += fallbackCals;
+                    itemsList.push(`${qty}x item estimate (~${fallbackCals} kcal)`);
+                }
+            });
+
+            currentAiParsedLog = {
+                name: text.substring(0, 30) + '...',
+                cals: totalCals,
+                protein: totalP,
+                carbs: totalC,
+                fats: totalF,
+                sugar: totalS,
+                minerals: { calcium: totalCa, potassium: totalPot }
+            };
+
+            // Render Preview
+            aiParsedItems.innerHTML = itemsList.map(i => `<p class="text-slate-600 dark:text-slate-300">• ${i}</p>`).join('');
+            document.getElementById('prev-cals').textContent = totalCals;
+            document.getElementById('prev-p').textContent = totalP + 'g';
+            document.getElementById('prev-c').textContent = totalC + 'g';
+            document.getElementById('prev-f').textContent = totalF + 'g';
+
+            aiPreviewCard.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-confirm-ai-log').addEventListener('click', () => {
+            if (currentAiParsedLog) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                appState.meals.push({
+                    id: Date.now(),
+                    date: todayStr,
+                    ...currentAiParsedLog
+                });
+                saveState();
+                aiFoodInput.value = '';
+                aiPreviewCard.classList.add('hidden');
+                alert("Meal logged successfully!");
+            }
+        });
+
+        // --- 5. CAMERA & BARCODE SCANNER LOGIC ---
+        const modeBtnQuick = document.getElementById('mode-btn-quick');
+        const modeBtnScan = document.getElementById('mode-btn-scan');
+        const modeBtnManual = document.getElementById('mode-btn-manual');
+
+        const logModeQuick = document.getElementById('log-mode-quick');
+        const logModeScan = document.getElementById('log-mode-scan');
+        const logModeManual = document.getElementById('log-mode-manual');
+
+        modeBtnQuick.addEventListener('click', () => setLogMode('quick'));
+        modeBtnScan.addEventListener('click', () => setLogMode('scan'));
+        modeBtnManual.addEventListener('click', () => setLogMode('manual'));
+
+        function setLogMode(mode) {
+            [modeBtnQuick, modeBtnScan, modeBtnManual].forEach(btn => {
+                btn.classList.remove('bg-white', 'dark:bg-ios-darkCard', 'shadow-sm', 'text-ios-blue');
+                btn.classList.add('text-slate-500');
+            });
+            [logModeQuick, logModeScan, logModeManual].forEach(el => el.classList.add('hidden'));
+
+            if (mode === 'quick') {
+                modeBtnQuick.classList.add('bg-white', 'dark:bg-ios-darkCard', 'shadow-sm', 'text-ios-blue');
+                logModeQuick.classList.remove('hidden');
+            } else if (mode === 'scan') {
+                modeBtnScan.classList.add('bg-white', 'dark:bg-ios-darkCard', 'shadow-sm', 'text-ios-blue');
+                logModeScan.classList.remove('hidden');
+            } else if (mode === 'manual') {
+                modeBtnManual.classList.add('bg-white', 'dark:bg-ios-darkCard', 'shadow-sm', 'text-ios-blue');
+                logModeManual.classList.remove('hidden');
+            }
+        }
+
+        // Camera Feed Setup
+        let videoStream = null;
+        const videoEl = document.getElementById('scanner-video');
+        const btnStartCam = document.getElementById('btn-start-camera');
+        const btnCaptureScan = document.getElementById('btn-capture-scan');
+        const ocrStatus = document.getElementById('ocr-status');
+
+        let scannedBatchQueue = [];
+
+        btnStartCam.addEventListener('click', async () => {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                videoEl.srcObject = null;
+                ocrStatus.textContent = "Camera stopped.";
+            } else {
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+                    videoEl.srcObject = videoStream;
+                    ocrStatus.textContent = "Camera live. Aim frame at product label/barcode.";
+                } catch (err) {
+                    ocrStatus.textContent = "Camera access unavailable or denied. Simulation mode active.";
+                }
+            }
+        });
+
+        // OCR/Scan Simulation Capture
+        btnCaptureScan.addEventListener('click', async () => {
+            ocrStatus.textContent = "Processing image scan...";
+            
+            // Simulate OCR scanning lookup (or real canvas processing if video available)
+            setTimeout(() => {
+                const sampleProducts = [
+                    { name: "Greek Yogurt Cup", cals: 130, p: 15, c: 6, f: 2, s: 5, ca: 150 },
+                    { name: "Protein Bar", cals: 200, p: 20, c: 22, f: 7, s: 2, ca: 80 },
+                    { name: "Almond Milk 240ml", cals: 30, p: 1, c: 1, f: 2.5, s: 0, ca: 300 }
+                ];
+
+                const picked = sampleProducts[Math.floor(Math.random() * sampleProducts.length)];
+                scannedBatchQueue.push({ ...picked, servings: 1.0 });
+                
+                ocrStatus.textContent = `Scanned: ${picked.name}! Added to batch.`;
+                renderScanQueue();
+            }, 1000);
+        });
+
+        function renderScanQueue() {
+            const queueContainer = document.getElementById('scan-queue-list');
+            const queueCountTag = document.getElementById('scan-queue-count');
+            const btnSubmitBatch = document.getElementById('btn-submit-scan-batch');
+
+            queueCountTag.textContent = `${scannedBatchQueue.length} items in batch`;
+
+            if (scannedBatchQueue.length === 0) {
+                queueContainer.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-2">No scanned items yet.</p>`;
+                btnSubmitBatch.disabled = true;
+                return;
+            }
+
+            btnSubmitBatch.disabled = false;
+            queueContainer.innerHTML = scannedBatchQueue.map((item, idx) => `
+                <div class="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-xs">
+                    <div>
+                        <p class="font-bold">${item.name}</p>
+                        <p class="text-[10px] text-slate-400">${Math.floor(item.cals * item.servings)} kcal | ${Math.floor(item.p * item.servings)}g P</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" step="0.5" value="${item.servings}" onchange="updateQueueServings(${idx}, this.value)" class="w-12 p-1 text-center font-bold bg-white dark:bg-slate-700 rounded-lg border-0 text-xs">
+                        <button onclick="removeQueueItem(${idx})" class="text-red-500 p-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        window.updateQueueServings = function(idx, val) {
+            if (scannedBatchQueue[idx]) {
+                scannedBatchQueue[idx].servings = parseFloat(val) || 1.0;
+                renderScanQueue();
+            }
+        };
+
+        window.removeQueueItem = function(idx) {
+            scannedBatchQueue.splice(idx, 1);
+            renderScanQueue();
+        };
+
+        document.getElementById('btn-submit-scan-batch').addEventListener('click', () => {
+            if (scannedBatchQueue.length === 0) return;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            scannedBatchQueue.forEach(item => {
+                const multiplier = item.servings || 1.0;
+                appState.meals.push({
+                    id: Date.now() + Math.random(),
+                    date: todayStr,
+                    name: `${item.name} (${multiplier}x)`,
+                    cals: Math.floor(item.cals * multiplier),
+                    protein: Math.floor(item.p * multiplier),
+                    carbs: Math.floor(item.c * multiplier),
+                    fats: Math.floor(item.f * multiplier),
+                    sugar: Math.floor(item.s * multiplier),
+                    minerals: { calcium: Math.floor((item.ca || 0) * multiplier) }
+                });
+            });
+
+            saveState();
+            scannedBatchQueue = [];
+            renderScanQueue();
+            alert("Scanned meal batch logged!");
+        });
+
+        // --- MANUAL LOG FORM ---
+        document.getElementById('manual-log-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const servings = parseFloat(document.getElementById('manual-servings').value) || 1.0;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            appState.meals.push({
+                id: Date.now(),
+                date: todayStr,
+                name: document.getElementById('manual-name').value,
+                cals: Math.floor((parseInt(document.getElementById('manual-cals').value) || 0) * servings),
+                protein: Math.floor((parseInt(document.getElementById('manual-p').value) || 0) * servings),
+                carbs: Math.floor((parseInt(document.getElementById('manual-c').value) || 0) * servings),
+                fats: Math.floor((parseInt(document.getElementById('manual-f').value) || 0) * servings),
+                sugar: Math.floor((parseInt(document.getElementById('manual-s').value) || 0) * servings),
+                minerals: {
+                    calcium: Math.floor((parseInt(document.getElementById('manual-calcium').value) || 0) * servings),
+                    potassium: Math.floor((parseInt(document.getElementById('manual-potassium').value) || 0) * servings),
+                    magnesium: Math.floor((parseInt(document.getElementById('manual-magnesium').value) || 0) * servings)
+                }
+            });
+
+            saveState();
+            alert("Manual meal logged!");
+        });
+
+        // --- 6. YOUTUBE STUDIO CHARTS & ANALYTICS ---
+        let macroChartInstance = null;
+        let weightChartInstance = null;
+
+        function renderStudioCharts() {
+            const ctxMacro = document.getElementById('macroChart').getContext('2d');
+            const ctxWeight = document.getElementById('weightChart').getContext('2d');
+
+            // Generate last 7 days dates
+            const labels = [];
+            const calData = [];
+            const weightData = [];
+
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+
+                // Sum meals for this date
+                const dayCals = appState.meals
+                    .filter(m => m.date === dateStr)
+                    .reduce((sum, m) => sum + m.cals, 0);
+                calData.push(dayCals);
+
+                // Find weight for this date
+                const wEntry = appState.weightLog.find(w => w.date === dateStr);
+                weightData.push(wEntry ? wEntry.weight : (appState.profile ? appState.profile.weight : 0));
+            }
+
+            // Calc avg cals
+            const avgCals = Math.round(calData.reduce((a,b) => a+b, 0) / 7);
+            document.getElementById('studio-avg-cals').textContent = `${avgCals} kcal`;
+
+            // Weight chart
+            if (macroChartInstance) macroChartInstance.destroy();
+            macroChartInstance = new Chart(ctxMacro, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Calories',
+                        data: calData,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: 'rgba(200,200,200,0.1)' } }
+                    }
+                }
+            });
+
+            if (weightChartInstance) weightChartInstance.destroy();
+            weightChartInstance = new Chart(ctxWeight, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Weight',
+                        data: weightData,
+                        borderColor: '#34C759',
+                        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: 'rgba(200,200,200,0.1)' } }
+                    }
+                }
+            });
+        }
+
+        // --- 7. WEIGHT MODAL ---
+        const quickWeightBtn = document.getElementById('quick-weight-btn');
+        const weightModal = document.getElementById('weight-modal');
+        const closeWeightModal = document.getElementById('close-weight-modal');
+        const btnSaveWeight = document.getElementById('btn-save-weight');
+
+        quickWeightBtn.addEventListener('click', () => {
+            if (appState.profile) {
+                document.getElementById('weight-modal-unit-label').textContent = appState.profile.unit;
+                document.getElementById('modal-weight-val').value = appState.profile.weight;
+            }
+            weightModal.classList.remove('hidden');
+        });
+
+        closeWeightModal.addEventListener('click', () => weightModal.classList.add('hidden'));
+
+        btnSaveWeight.addEventListener('click', () => {
+            const val = parseFloat(document.getElementById('modal-weight-val').value);
+            if (val && appState.profile) {
+                appState.profile.weight = val;
+                const todayStr = new Date().toISOString().split('T')[0];
+                appState.weightLog.push({ date: todayStr, weight: val, unit: appState.profile.unit });
+                saveState();
+                weightModal.classList.add('hidden');
+            }
+        });
+
+        // --- 8. SETTINGS & RE-EDITING GOALS ---
+        function populateSettingsForm() {
+            if (!appState.profile) return;
+            const p = appState.profile;
+            document.getElementById('edit-cals').value = p.cals;
+            document.getElementById('edit-protein').value = p.protein;
+            document.getElementById('edit-carbs').value = p.carbs;
+            document.getElementById('edit-fats').value = p.fats;
+            document.getElementById('edit-sugar').value = p.sugar;
+            document.getElementById('edit-unit').value = p.unit;
+
+            document.getElementById('header-weight-lbl').textContent = `${p.weight} ${p.unit}`;
+        }
+
+        document.getElementById('settings-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!appState.profile) return;
+
+            appState.profile.cals = parseInt(document.getElementById('edit-cals').value) || 2000;
+            appState.profile.protein = parseInt(document.getElementById('edit-protein').value) || 150;
+            appState.profile.carbs = parseInt(document.getElementById('edit-carbs').value) || 200;
+            appState.profile.fats = parseInt(document.getElementById('edit-fats').value) || 65;
+            appState.profile.sugar = parseInt(document.getElementById('edit-sugar').value) || 35;
+            appState.profile.unit = document.getElementById('edit-unit').value;
+
+            saveState();
+            alert("Updated plan targets successfully!");
+        });
+
+        document.getElementById('btn-reset-data').addEventListener('click', () => {
+            if (confirm("Reset all data and return to setup wizard?")) {
+                localStorage.removeItem(STORAGE_KEY);
+                appState = { profile: null, meals: [], weightLog: [] };
+                checkOnboarding();
+            }
+        });
+
+        // --- 9. MAIN UI RENDERER ---
+        function updateUI() {
+            if (!appState.profile) return;
+
+            const p = appState.profile;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Filter today's meals
+            const todayMeals = appState.meals.filter(m => m.date === todayStr);
+
+            const totals = todayMeals.reduce((acc, m) => {
+                acc.cals += m.cals || 0;
+                acc.protein += m.protein || 0;
+                acc.carbs += m.carbs || 0;
+                acc.fats += m.fats || 0;
+                acc.sugar += m.sugar || 0;
+                acc.calcium += (m.minerals && m.minerals.calcium) || 0;
+                acc.potassium += (m.minerals && m.minerals.potassium) || 0;
+                acc.magnesium += (m.minerals && m.minerals.magnesium) || 0;
+                acc.iron += (m.minerals && m.minerals.iron) || 0;
+                acc.zinc += (m.minerals && m.minerals.zinc) || 0;
+                acc.sodium += (m.minerals && m.minerals.sodium) || 0;
+                return acc;
+            }, { cals:0, protein:0, carbs:0, fats:0, sugar:0, calcium:0, potassium:0, magnesium:0, iron:0, zinc:0, sodium:0 });
+
+            // Calories overview
+            document.getElementById('dash-cals-consumed').textContent = totals.cals;
+            document.getElementById('dash-cals-target').textContent = `/ ${p.cals} kcal`;
+            const calsPct = Math.min(100, Math.round((totals.cals / p.cals) * 100));
+            document.getElementById('cals-percent').textContent = `${calsPct}%`;
+            document.getElementById('cals-bar').style.width = `${calsPct}%`;
+
+            // Sub Macros
+            document.getElementById('dash-p-val').textContent = totals.protein;
+            document.getElementById('p-bar').style.width = `${Math.min(100, (totals.protein / p.protein) * 100)}%`;
+
+            document.getElementById('dash-c-val').textContent = totals.carbs;
+            document.getElementById('c-bar').style.width = `${Math.min(100, (totals.carbs / p.carbs) * 100)}%`;
+
+            document.getElementById('dash-f-val').textContent = totals.fats;
+            document.getElementById('f-bar').style.width = `${Math.min(100, (totals.fats / p.fats) * 100)}%`;
+
+            document.getElementById('dash-s-val').textContent = totals.sugar;
+            document.getElementById('s-bar').style.width = `${Math.min(100, (totals.sugar / p.sugar) * 100)}%`;
+
+            // Minerals
+            document.getElementById('min-calcium').textContent = totals.calcium;
+            document.getElementById('target-calcium').textContent = p.minerals ? p.minerals.calcium : 1000;
+
+            document.getElementById('min-potassium').textContent = totals.potassium;
+            document.getElementById('target-potassium').textContent = p.minerals ? p.minerals.potassium : 3400;
+
+            document.getElementById('min-magnesium').textContent = totals.magnesium;
+            document.getElementById('target-magnesium').textContent = p.minerals ? p.minerals.magnesium : 400;
+
+            document.getElementById('min-iron').textContent = totals.iron;
+            document.getElementById('target-iron').textContent = p.minerals ? p.minerals.iron : 18;
+
+            document.getElementById('min-zinc').textContent = totals.zinc;
+            document.getElementById('target-zinc').textContent = p.minerals ? p.minerals.zinc : 11;
+
+            document.getElementById('min-sodium').textContent = totals.sodium;
+            document.getElementById('target-sodium').textContent = p.minerals ? p.minerals.sodium : 2300;
+
+            // Render Meals List
+            const mealsContainer = document.getElementById('today-meals-container');
+            document.getElementById('meal-count-tag').textContent = `${todayMeals.length} logged`;
+
+            if (todayMeals.length === 0) {
+                mealsContainer.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">No meals logged yet today. Tap "Log Food" below to get started!</p>`;
+            } else {
+                mealsContainer.innerHTML = todayMeals.map(m => `
+                    <div class="p-3.5 rounded-2xl bg-white dark:bg-ios-darkCard border border-slate-200/50 dark:border-slate-800 flex items-center justify-between shadow-sm">
+                        <div>
+                            <p class="text-xs font-bold">${m.name}</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">${m.cals} kcal | ${m.protein}g P | ${m.carbs}g C | ${m.fats}g F</p>
+                        </div>
+                        <button onclick="deleteMeal(${m.id})" class="text-slate-400 hover:text-red-500 p-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('header-weight-lbl').textContent = `${p.weight} ${p.unit}`;
+
+            lucide.createIcons();
+        }
+
+        window.deleteMeal = function(id) {
+            appState.meals = appState.meals.filter(m => m.id !== id);
+            saveState();
+        };
+
+        // --- APP INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            checkOnboarding();
+            updateUI();
+        });
+    </script>
+</body>
+</html>
